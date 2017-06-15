@@ -291,20 +291,20 @@ else:
 tag_set_sizes = { att: len(t2i) for att, t2i in t2is.items() }
 
 if options.loss_prop:
-	att_props = get_att_prop(training_instances)
+    att_props = get_att_prop(training_instances)
 else:
-	att_props = None
+    att_props = None
 model = LSTMTagger(tagset_sizes=tag_set_sizes,
-				   num_lstm_layers=options.lstm_layers,
-				   hidden_dim=options.hidden_dim,
-				   word_embeddings=word_embeddings,
-				   no_we_update = options.no_we_update,
-				   use_char_rnn=options.use_char_rnn,
-				   charset_size=len(c2i),
-				   lowercase_words=options.lowercase_words,
-				   vocab_size=len(w2i),
-				   att_props=att_props,
-				   word_embedding_dim=DEFAULT_WORD_EMBEDDING_SIZE)
+                   num_lstm_layers=options.lstm_layers,
+                   hidden_dim=options.hidden_dim,
+                   word_embeddings=word_embeddings,
+                   no_we_update = options.no_we_update,
+                   use_char_rnn=options.use_char_rnn,
+                   charset_size=len(c2i),
+                   lowercase_words=options.lowercase_words,
+                   vocab_size=len(w2i),
+                   att_props=att_props,
+                   word_embedding_dim=DEFAULT_WORD_EMBEDDING_SIZE)
 
 trainer = dy.MomentumSGDTrainer(model.model, options.learning_rate, 0.9, 0.1)
 logging.info("Training Algorithm: {}".format(type(trainer)))
@@ -330,13 +330,13 @@ for epoch in xrange(int(options.num_epochs)):
 
     for idx,instance in enumerate(bar(train_instances)):
         if len(instance.sentence) == 0: continue
-        
-		gold_tags = instance.tags
-		for att in model.attributes:
-			if att not in instance.tags:
-				gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-		loss_exprs = model.loss(instance.sentence, gold_tags)
-		loss_expr = dy.esum(loss_exprs.values())
+
+        gold_tags = instance.tags
+        for att in model.attributes:
+            if att not in instance.tags:
+                gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
+        loss_exprs = model.loss(instance.sentence, gold_tags)
+        loss_expr = dy.esum(loss_exprs.values())
         loss = loss_expr.scalar_value()
 
         # Bail if loss is NaN
@@ -374,13 +374,13 @@ for epoch in xrange(int(options.num_epochs)):
     with open("{}/devout_epoch-{:02d}.txt".format(options.log_dir, epoch + 1), 'w') as dev_writer:
         for instance in bar(d_instances):
             if len(instance.sentence) == 0: continue
-			gold_tags = instance.tags
-			for att in model.attributes:
-				if att not in instance.tags:
-					gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-			losses = model.loss(instance.sentence, gold_tags)
-			total_loss = sum([l.scalar_value() for l in losses.values()])
-			out_tags_set = model.tag_sentence(instance.sentence)
+            gold_tags = instance.tags
+            for att in model.attributes:
+                if att not in instance.tags:
+                    gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
+            losses = model.loss(instance.sentence, gold_tags)
+            total_loss = sum([l.scalar_value() for l in losses.values()])
+            out_tags_set = model.tag_sentence(instance.sentence)
 
             gold_strings = utils.morphotag_strings(i2ts, gold_tags, options.pos_separate_col)
             obs_strings = utils.morphotag_strings(i2ts, out_tags_set, options.pos_separate_col)
@@ -472,11 +472,11 @@ else:
 with open("{}/testout.txt".format(options.log_dir), 'w') as test_writer:
     for instance in bar(t_instances):
         if len(instance.sentence) == 0: continue
-		gold_tags = instance.tags
-		for att in model.attributes:
-			if att not in instance.tags:
-				gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-		out_tags_set = model.tag_sentence(instance.sentence)
+        gold_tags = instance.tags
+        for att in model.attributes:
+            if att not in instance.tags:
+                gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
+        out_tags_set = model.tag_sentence(instance.sentence)
 
         gold_strings = utils.morphotag_strings(i2ts, gold_tags, options.pos_separate_col)
         obs_strings = utils.morphotag_strings(i2ts, out_tags_set, options.pos_separate_col)
