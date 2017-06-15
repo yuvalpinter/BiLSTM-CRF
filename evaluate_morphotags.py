@@ -18,8 +18,8 @@ def f1(corr, gold, obs):
 class Evaluator(object):
     '''
     classdocs
-    '''   
-    
+    '''
+
     def __init__(self, m='att'):
         '''
         values for m (mode):
@@ -33,7 +33,7 @@ class Evaluator(object):
         self.gold = {}
         self.observed = {}
         self.mode = m
-        
+
     def add_instance(self, g, o):
         '''
         g - gold annotation for instance
@@ -44,23 +44,23 @@ class Evaluator(object):
             if g == o: # order-insensitive
                 self.exact_match = self.exact_match + 1
             return
-            
+
         for (k, v) in g.items():
             key = self._key(k, v)
             if o.get(k, 'NOT A VALUE') == v:
                 self.correct[key] = self.correct.get(key, 0) + 1  # for macro-micro
             self.gold[key] = self.gold.get(key, 0) + 1  # mac-mic
-            
+
         for (k, v) in o.items():
             key = self._key(k, v)
             self.observed[key] = self.observed.get(key, 0) + 1  # mac-mic
-            
+
     def _key(self, k, v):
         if self.mode == 'att':
             return k
         if self.mode == 'att_val':
             return (k,v)
-    
+
     def mic_f1(self, att = None):
         '''
         Micro F1
@@ -69,7 +69,7 @@ class Evaluator(object):
         if att != None:
             return f1(self.correct.get(att, 0), self.gold.get(att, 0), self.observed.get(att, 0))
         return f1(sum(self.correct.values()), sum(self.gold.values()), sum(self.observed.values()))
-    
+
     def mac_f1(self, att = None):
         '''
         Macro F1
@@ -81,7 +81,7 @@ class Evaluator(object):
         else:
             keys = [k for k in all_keys if k[0] == att]
         return average([f1(self.correct.get(k, 0), self.gold.get(k, 0), self.observed.get(k, 0)) for k in keys])
-    
+
     def acc(self):
         '''
         Accuracy for 'exact_match' mode

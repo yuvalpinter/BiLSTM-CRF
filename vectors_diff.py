@@ -29,12 +29,12 @@ def get_next_att_batch(attributes, att_tuple, idx):
     for i, att in enumerate(attributes, idx):
         ret[att] = att_tuple[i]
     return ret
-    
+
 class BiLSTM_CRF:
 
     def __init__(self, rnn_model, use_char_rnn):
         self.use_char_rnn = use_char_rnn
-        
+
         self.model = dy.Model()
         att_tuple = self.model.load(rnn_model)
         self.attributes = open(rnn_model + "-atts", "r").read().split("\t")
@@ -57,12 +57,12 @@ class BiLSTM_CRF:
         idx += att_ct
         self.mlp_out_bias = get_next_att_batch(self.attributes, att_tuple, idx)
         idx += att_ct
-        self.transitions = get_next_att_batch(self.attributes, att_tuple, idx)    
+        self.transitions = get_next_att_batch(self.attributes, att_tuple, idx)
 
         # TODO Morpheme embedding parameters
         self.morpheme_lookup = None
-        
-    
+
+
     def set_dropout(self, p):
         self.bi_lstm.set_dropout(p)
 
@@ -73,7 +73,7 @@ class BiLSTM_CRF:
 
     def word_rep(self, word):
         return self.words_lookup[word]
-        
+
     def size(self):
         return self.words_lookup.shape()[0]
 
@@ -85,7 +85,7 @@ class LSTMTagger:
 
     def __init__(self, rnn_model, use_char_rnn):
         self.use_char_rnn = use_char_rnn
-        
+
         self.model = dy.Model()
         att_tuple = self.model.load(rnn_model)
         self.attributes = open(rnn_model + "-atts", "r").read().split("\t")
@@ -111,7 +111,7 @@ class LSTMTagger:
 
     def word_rep(self, w):
         return self.words_lookup[w]
-        
+
     def size(self):
         return self.words_lookup.shape()[0]
 

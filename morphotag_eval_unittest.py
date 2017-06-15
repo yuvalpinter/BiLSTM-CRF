@@ -25,7 +25,7 @@ class Test(unittest.TestCase):
                     eval1.add_instance(g, o)
                     eval2.add_instance(g, o)
                     eval3.add_instance(g, o)
-                
+
         assert_almost_equal(eval1.mic_f1(), 5/9)
         assert_almost_equal(eval1.mac_f1(), 13/30)
         assert_almost_equal(eval1.mic_f1(att = "Number"), 2/5)

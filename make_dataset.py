@@ -16,7 +16,7 @@ t2is: Dict mapping attribute types (POS / morpho) to dicts from tags to indices
 c2i: Dict mapping characters to indices
 """
 
- 
+
 import codecs
 import argparse
 import cPickle
@@ -52,16 +52,16 @@ def read_morpheme_segmentations(filename, w2i, m2i):
 def read_file(filename, w2i, t2is, c2i):
     """
     Read in a dataset and turn it into a list of instances.
-    Modifies the w2i, t2is and c2i dicts, adding new words/attributes/tags/chars 
+    Modifies the w2i, t2is and c2i dicts, adding new words/attributes/tags/chars
     as it sees them.
     """
-    
+
     # populate mandatory t2i tables
     if POS_KEY not in t2is:
         t2is[POS_KEY] = {}
     if options.flat_morphotags and MORPH_KEY not in t2is:
         t2is[MORPH_KEY] = {NONE_TAG:0}
-    
+
     instances = []
     vocab_counter = collections.Counter()
     with codecs.open(filename, "r", "utf-8") as f:
@@ -85,7 +85,7 @@ def read_file(filename, w2i, t2is, c2i):
                 if '-' in data[0]: # Italian has contractions on a separate line, we don't want to include them also
                     continue
                 idx = int(data[0])
-                word = data[1]                
+                word = data[1]
                 postag = data[3] if options.ud_tags else data[4]
                 morphotags = split_tagstring(data[5], uni_key=options.flat_morphotags) if options.morphotags else {}
                 vocab_counter[word] += 1

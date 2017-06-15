@@ -30,14 +30,14 @@ def get_next_att_batch(attributes, att_tuple, idx):
     for i, att in enumerate(attributes, idx):
         ret[att] = att_tuple[i]
     return ret
-    
+
 class BiLSTM_CRF:
 
     def __init__(self, rnn_model, use_char_rnn, tagset_sizes, train_vocab_ctr):
         self.tagset_sizes = tagset_sizes
         self.train_vocab_ctr = train_vocab_ctr
         self.use_char_rnn = use_char_rnn
-        
+
         self.model = dy.Model()
         att_tuple = self.model.load(rnn_model)
         self.attributes = open(rnn_model + "-atts", "r").read().split("\t") # can also be extracted then sorted from tagset_sizes
@@ -60,12 +60,12 @@ class BiLSTM_CRF:
         idx += att_ct
         self.mlp_out_bias = get_next_att_batch(self.attributes, att_tuple, idx)
         idx += att_ct
-        self.transitions = get_next_att_batch(self.attributes, att_tuple, idx)    
+        self.transitions = get_next_att_batch(self.attributes, att_tuple, idx)
 
         # TODO Morpheme embedding parameters
         self.morpheme_lookup = None
-        
-    
+
+
     def set_dropout(self, p):
         self.bi_lstm.set_dropout(p)
 
@@ -78,7 +78,7 @@ class BiLSTM_CRF:
         """
         For rare words in the training data, we will use their morphemes
         to make their representation
-        """ 
+        """
         if self.train_vocab_ctr[word] > 5 or self.morpheme_lookup is None:
             wemb = self.words_lookup[word]
         else:
@@ -95,7 +95,7 @@ class BiLSTM_CRF:
                 # TODO handle this in a better way.  Looks like all such inputs are either URLs, email addresses, or
                 # long strings of a punctuation token when the decomposition is > 10
                 wemb = self.words_lookup[w2i["<UNK>"]]
-        
+
         if self.use_char_rnn:
             pad_char = c2i[PADDING_CHAR]
             char_ids = [pad_char] + [c2i[c] for c in i2w[word]] + [pad_char] # TODO optimize
@@ -110,9 +110,9 @@ class BiLSTM_CRF:
         dy.renew_cg()
 
         embeddings = [self.word_rep(w) for w in sentence]
-        
+
         lstm_out = self.bi_lstm.transduce(embeddings)
-        
+
         scores = {}
         H = {}
         Hb = {}
@@ -209,7 +209,7 @@ class LSTMTagger:
 
     def __init__(self, rnn_model, use_char_rnn):
         self.use_char_rnn = use_char_rnn
-        
+
         self.model = dy.Model()
         att_tuple = self.model.load(rnn_model)
         self.attributes = open(rnn_model + "-atts", "r").read().split("\t")
@@ -257,7 +257,7 @@ class LSTMTagger:
         O = {}
         Ob = {}
         scores = {}
-        for att in self.attributes:        
+        for att in self.attributes:
             H[att] = dy.parameter(self.lstm_to_tags_params[att])
             Hb[att] = dy.parameter(self.lstm_to_tags_bias[att])
             O[att] = dy.parameter(self.mlp_out[att])
@@ -283,7 +283,7 @@ class LSTMTagger:
             tag_seqs[att] = tag_seq
         return tag_seqs
 
-    
+
     def set_dropout(self, p):
         self.word_bi_lstm.set_dropout(p)
 
@@ -430,7 +430,7 @@ with open("{}/{}out.txt".format(options.out_dir, devortest), 'w') as test_writer
                 if att not in instance.tags:
                     gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
             _, out_tags_set = model.viterbi_loss(instance.sentence, gold_tags)
-            
+
         gold_strings = utils.morphotag_strings(i2ts, gold_tags, options.pos_separate_col)
         obs_strings = utils.morphotag_strings(i2ts, out_tags_set, options.pos_separate_col)
         for g, o in zip(gold_strings, obs_strings):
@@ -449,7 +449,7 @@ with open("{}/{}out.txt".format(options.out_dir, devortest), 'w') as test_writer
                     correct_sent = False
                     if i2w[word] not in training_vocab:
                         total_wrong_oov[att] += 1
-                
+
                 if i2w[word] not in training_vocab:
                     test_oov_total[att] += 1
                     oov_strings.append("OOV")
@@ -460,8 +460,8 @@ with open("{}/{}out.txt".format(options.out_dir, devortest), 'w') as test_writer
                          + "\n".join(["\t".join(z) for z in zip([i2w[w] for w in instance.sentence],
                                                                      gold_strings, obs_strings, oov_strings)])
                          + "\n").encode('utf8'))
-        
-            
+
+
 if options.use_dev:
     logging.info("POS Dev Accuracy: {}".format(test_correct[POS_KEY] / test_total[POS_KEY]))
 else:

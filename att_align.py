@@ -75,14 +75,14 @@ with open(options.results, "r", encoding="utf-8") as dev_results:
             if len(res_cols) < 4: continue
             pos_res_cols = pos_res.split("\t")
             assert res_cols[0:1] == pos_res_cols[0:1]
-            
+
             gold_pos = res_cols[1]
             obs_pos = res_cols[3]
             posonly_pos = pos_res_cols[3]
-            
+
             gold = split_tagstring(res_cols[2])
             curr_obs = split_tagstring(res_cols[4])
-            
+
             dict_allow_atts = pos_atts[obs_pos]
             posonly_atts = pos_atts[posonly_pos]
             oracle_atts = pos_atts[gold_pos]
@@ -90,15 +90,15 @@ with open(options.results, "r", encoding="utf-8") as dev_results:
                 joint_good += 1 # validate log result
             if gold_pos == posonly_pos:
                 posonly_good += 1 # validate log result
-            
+
             dict_removed_obs = {att:val for att, val in curr_obs.iteritems() if att in dict_allow_atts}
             posonly_obs = {att:val for att, val in curr_obs.iteritems() if att in posonly_atts}
             oracle_obs = {att:val for att, val in curr_obs.iteritems() if att in oracle_atts}
-            
+
             unseen = [a for a in gold if a not in oracle_atts]
             if len(unseen) > 0 and options.debug: print "Unseen", gold_pos, unseen
             dev_pairs_not_in_train += len(unseen)
-            
+
             # add to evaluators
             curr_eval.add_instance(gold, curr_obs)
             dict_removed_eval.add_instance(gold, dict_removed_obs)

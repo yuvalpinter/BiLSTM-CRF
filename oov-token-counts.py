@@ -13,17 +13,17 @@ for lg in langs:
         pg_words_list, _ = cPickle.load(pg_file)
         pg_words = set(pg_words_list)
         #print "{}: found {} Polyglot words".format(lg, len(pg_words))
-    
+
     # get oov word list
     with codecs.open("vocabs/{}-vocab.txt".format(lg),"r", "utf-8") as ud_vocab_file:
         ud_vocab_words = set([w.strip() for w in ud_vocab_file.readlines()])
         #print "{}: found {} UD words".format(lg, len(ud_vocab_words))
-    
+
     # get oovs
     oovs = ud_vocab_words - pg_words
     oov_typ_rate = len(oovs) * 100 / len(ud_vocab_words)
     #print "{}: OOV types - {}".format(lg, len(oovs), oovs)
-    
+
     # count oovs in UD dataset
     with open("datasets/{}_mtags-pos.pkl".format(lg),"r") as udds_file:
         udds = cPickle.load(udds_file)
@@ -37,8 +37,7 @@ for lg in langs:
             for word in inst.sentence:
                 if word in oov_idxs:
                     oov_toks += 1
-    
+
     oov_tok_rate = oov_toks * 100 / total_toks
     print lg, len(ud_vocab_words), len(oovs), oov_typ_rate, oov_tok_rate
     #print "{}: found {:.2f}% OOV tokens ({} of {})".format(lg, oov_tok_rate, oov_toks, total_toks)
-    
