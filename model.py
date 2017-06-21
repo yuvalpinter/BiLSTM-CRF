@@ -1,5 +1,6 @@
 from __future__ import division
 from collections import Counter
+from _collections import defaultdict
 from evaluate_morphotags import Evaluator
 from sys import maxint
 
@@ -35,7 +36,7 @@ class LSTMTagger:
         self.we_update = not no_we_update
         self.lowercase_words = lowercase_words
         if att_props is not None:
-            self.att_props = {att:(1.0-p) for att,p in att_props.iteritems()}
+            self.att_props = defaultdict(float, {att:(1.0-p) for att,p in att_props.iteritems()})
         else:
             self.att_props = None
 
@@ -294,6 +295,7 @@ if options.loss_prop:
     att_props = get_att_prop(training_instances)
 else:
     att_props = None
+
 model = LSTMTagger(tagset_sizes=tag_set_sizes,
                    num_lstm_layers=options.lstm_layers,
                    hidden_dim=options.hidden_dim,
@@ -312,7 +314,6 @@ logging.info("Training Algorithm: {}".format(type(trainer)))
 logging.info("Number training instances: {}".format(len(training_instances)))
 logging.info("Number dev instances: {}".format(len(dev_instances)))
 
-training_total_tokens = 0
 for epoch in xrange(int(options.num_epochs)):
     bar = progressbar.ProgressBar()
     random.shuffle(training_instances)
@@ -344,7 +345,6 @@ for epoch in xrange(int(options.num_epochs)):
             assert False, "NaN occured"
 
         train_loss += (loss / len(instance.sentence))
-        training_total_tokens += len(instance.sentence)
 
         # Do backward pass and update parameters
         loss_expr.backward()
@@ -382,8 +382,8 @@ for epoch in xrange(int(options.num_epochs)):
             total_loss = sum([l.scalar_value() for l in losses.values()])
             out_tags_set = model.tag_sentence(instance.sentence)
 
-            gold_strings = utils.morphotag_strings(i2ts, gold_tags, options.pos_separate_col)
-            obs_strings = utils.morphotag_strings(i2ts, out_tags_set, options.pos_separate_col)
+            gold_strings = utils.morphotag_strings(i2ts, gold_tags)
+            obs_strings = utils.morphotag_strings(i2ts, out_tags_set)
             for g, o in zip(gold_strings, obs_strings):
                 f1_eval.add_instance(utils.split_tagstring(g, has_pos=True), utils.split_tagstring(o, has_pos=True))
             for att, tags in gold_tags.items():
@@ -427,7 +427,7 @@ for epoch in xrange(int(options.num_epochs)):
     for attr in t2is.keys():
         if attr != POS_KEY:
             logging.info("{} F1: {}".format(attr, f1_eval.mic_f1(att = attr)))
-    logging.info("Total attribute F1s: {} micro, {} macro, POS included = {}".format(f1_eval.mic_f1(), f1_eval.mac_f1(), not options.pos_separate_col))
+    logging.info("Total attribute F1s: {} micro, {} macro, POS included = {}".format(f1_eval.mic_f1(), f1_eval.mac_f1(), False))
 
     logging.info("Total dev tokens: {}, Total dev OOV: {}, % OOV: {}".format(dev_total[POS_KEY], dev_oov_total[POS_KEY], dev_oov_total[POS_KEY] / dev_total[POS_KEY]))
 
@@ -449,8 +449,6 @@ for epoch in xrange(int(options.num_epochs)):
             os.remove(old_model_file_name + "-atts")
             old_devout_file_name = "{}/devout_epoch-{:02d}.txt".format(options.log_dir, epoch)
             os.remove(old_devout_file_name)
-
-    if training_total_tokens >= TRAIN_LIMIT: break
 
 
 
@@ -478,8 +476,8 @@ with open("{}/testout.txt".format(options.log_dir), 'w') as test_writer:
                 gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
         out_tags_set = model.tag_sentence(instance.sentence)
 
-        gold_strings = utils.morphotag_strings(i2ts, gold_tags, options.pos_separate_col)
-        obs_strings = utils.morphotag_strings(i2ts, out_tags_set, options.pos_separate_col)
+        gold_strings = utils.morphotag_strings(i2ts, gold_tags)
+        obs_strings = utils.morphotag_strings(i2ts, out_tags_set)
         for g, o in zip(gold_strings, obs_strings):
             f1_eval.add_instance(utils.split_tagstring(g, has_pos=True), utils.split_tagstring(o, has_pos=True))
         for att, tags in gold_tags.items():
@@ -517,6 +515,6 @@ if total_wrong[POS_KEY] > 0:
 for attr in t2is.keys():
     if attr != POS_KEY:
         logging.info("{} F1: {}".format(attr, f1_eval.mic_f1(att = attr)))
-logging.info("Total attribute F1s: {} micro, {} macro, POS included = {}".format(f1_eval.mic_f1(), f1_eval.mac_f1(), not options.pos_separate_col))
+logging.info("Total attribute F1s: {} micro, {} macro, POS included = {}".format(f1_eval.mic_f1(), f1_eval.mac_f1(), False))
 
 logging.info("Total test tokens: {}, Total test OOV: {}, % OOV: {}".format(test_total[POS_KEY], test_oov_total[POS_KEY], test_oov_total[POS_KEY] / test_total[POS_KEY]))
