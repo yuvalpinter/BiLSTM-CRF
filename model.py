@@ -435,6 +435,10 @@ for epoch in xrange(int(options.num_epochs)):
     logging.info("Dev Loss: {}".format(dev_loss))
     train_dev_cost.add_column([train_loss, dev_loss])
 
+    if epoch > 1 and epoch % 10 != 0: # leave outputs from epochs 1,10,20, etc.
+        old_devout_file_name = "{}/devout_epoch-{:02d}.txt".format(options.log_dir, epoch)
+        os.remove(old_devout_file_name)
+
     # Serialize model
     if not options.no_model:
         new_model_file_name = "{}/model_epoch-{:02d}.bin".format(options.log_dir, epoch + 1)
@@ -447,10 +451,6 @@ for epoch in xrange(int(options.num_epochs)):
             os.remove(old_model_file_name + ".pym")
             os.remove(old_model_file_name + ".pyk")
             os.remove(old_model_file_name + "-atts")
-            old_devout_file_name = "{}/devout_epoch-{:02d}.txt".format(options.log_dir, epoch)
-            os.remove(old_devout_file_name)
-
-
 
 # Evaluate test data (once)
 logging.info("\n")
