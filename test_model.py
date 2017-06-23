@@ -25,10 +25,10 @@ POS_KEY = "POS"
 PADDING_CHAR = "<*>"
 
 
-def get_next_att_batch(attributes, att_tuple, idx):
+def get_next_att_batch(attributes, att_tuple):
     ret = {}
-    for i, att in enumerate(attributes, idx):
-        ret[att] = att_tuple[i]
+    for att in attributes:
+        ret[att] = att_tuple.next()
     return ret
 
 class BiLSTM_CRF:
@@ -39,28 +39,19 @@ class BiLSTM_CRF:
         self.use_char_rnn = use_char_rnn
 
         self.model = dy.Model()
-        att_tuple = self.model.load(rnn_model)
+        att_tuple = iter(self.model.load(rnn_model))
         self.attributes = open(rnn_model + "-atts", "r").read().split("\t") # can also be extracted then sorted from tagset_sizes
         att_ct = len(self.attributes)
-        idx = 0
-        self.words_lookup = att_tuple[idx]
-        idx += 1
+        self.words_lookup = att_tuple.next()
         if (self.use_char_rnn):
-            self.char_lookup = att_tuple[idx]
-            idx += 1
-            self.char_bi_lstm = att_tuple[idx]
-            idx += 1
-        self.bi_lstm = att_tuple[idx]
-        idx += 1
-        self.lstm_to_tags_params = get_next_att_batch(self.attributes, att_tuple, idx)
-        idx += att_ct
-        self.lstm_to_tags_bias = get_next_att_batch(self.attributes, att_tuple, idx)
-        idx += att_ct
-        self.mlp_out = get_next_att_batch(self.attributes, att_tuple, idx)
-        idx += att_ct
-        self.mlp_out_bias = get_next_att_batch(self.attributes, att_tuple, idx)
-        idx += att_ct
-        self.transitions = get_next_att_batch(self.attributes, att_tuple, idx)
+            self.char_lookup = att_tuple.next()
+            self.char_bi_lstm = att_tuple.next()
+        self.bi_lstm = att_tuple.next()
+        self.lstm_to_tags_params = get_next_att_batch(self.attributes, att_tuple)
+        self.lstm_to_tags_bias = get_next_att_batch(self.attributes, att_tuple)
+        self.mlp_out = get_next_att_batch(self.attributes, att_tuple)
+        self.mlp_out_bias = get_next_att_batch(self.attributes, att_tuple)
+        self.transitions = get_next_att_batch(self.attributes, att_tuple)
 
         # TODO Morpheme embedding parameters
         self.morpheme_lookup = None
