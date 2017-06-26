@@ -117,8 +117,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True, dest="dataset", help=".pkl file to use")
     parser.add_argument("--vocab", required=True, dest="vocab", help="total vocab to output")
-    parser.add_argument("--output", required=True, dest="output", help="file with all embeddings")
-    parser.add_argument("--model-out", dest="model_out", help="file with model parameters (optional)")
+    parser.add_argument("--output", dest="output", help="file with all embeddings")
+    parser.add_argument("--model-out", dest="model_out", help="file with model parameters")
     parser.add_argument("--lang", dest="lang", default="en", help="language")
     parser.add_argument("--char-dim", default=DEFAULT_CHAR_DIM, dest="char_dim", help="dimension for character embeddings (default = 20)")
     parser.add_argument("--hidden-dim", default=DEFAULT_HIDDEN_DIM, dest="hidden_dim", help="dimension for LSTM layers (default = 50)")
@@ -146,7 +146,8 @@ if __name__ == "__main__":
 
     root_logger.info("Training dataset: {}".format(options.dataset))
     root_logger.info("Output vocabulary: {}".format(options.vocab))
-    root_logger.info("Output location: {}\n".format(options.output))
+    root_logger.info("Vectors output location: {}".format(options.output))
+    root_logger.info("Model output location: {}\n".format(options.model_out))
 
     # Load training set
     dataset = cPickle.load(open(options.dataset, "r"))
@@ -287,12 +288,13 @@ if __name__ == "__main__":
 
 
     # write all
-    with codecs.open(options.output, "w", "utf-8") as writer:
-        for vw, emb in vocab_words.iteritems():
-            writer.write(vw + " ")
-            for i in emb:
-                writer.write(str(i) + " ")
-            writer.write("\n")
+    if options.output is not None:
+        with codecs.open(options.output, "w", "utf-8") as writer:
+            for vw, emb in vocab_words.iteritems():
+                writer.write(vw + " ")
+                for i in emb:
+                    writer.write(str(i) + " ")
+                writer.write("\n")
 
     # save model
     if options.model_out is not None:

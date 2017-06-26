@@ -443,7 +443,7 @@ for epoch in xrange(int(options.num_epochs)):
     if not options.no_model:
         new_model_file_name = "{}/model_epoch-{:02d}.bin".format(options.log_dir, epoch + 1)
         logging.info("Saving model to {}".format(new_model_file_name))
-        model.save(new_model_file_name) # TODO also save non-internal model stuff like mappings (?)
+        model.save(new_model_file_name)
         if epoch > 1 and epoch % 10 != 0: # leave models from epochs 1,10,20, etc.
             logging.info("Removing files from previous epoch.")
             old_model_file_name = "{}/model_epoch-{:02d}.bin".format(options.log_dir, epoch)
