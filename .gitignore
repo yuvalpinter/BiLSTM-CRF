@@ -11,6 +11,8 @@ mimick/*.txt
 mimick/*.gz
 mimick/embedding_train_charlstm*
 mimick/bad/
+mimick/models/*.pkl*
+mimick/models/*.c2i
 scripts/utils.*
 attribute_alignment/
 misc-results/
