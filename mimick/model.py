@@ -26,10 +26,10 @@ class LSTMMimick:
 
     def __init__(self, c2i, num_lstm_layers=-1,\
                 char_dim=-1, hidden_dim=-1, word_embedding_dim=-1, file=None):
+        self.c2i = c2i
         self.model = dy.Model()
         if file == None:
             # Char LSTM Parameters
-            self.c2i = c2i
             self.char_lookup = self.model.add_lookup_parameters((len(c2i), char_dim))
             self.char_fwd_lstm = dy.LSTMBuilder(num_lstm_layers, char_dim, hidden_dim, self.model)
             self.char_bwd_lstm = dy.LSTMBuilder(num_lstm_layers, char_dim, hidden_dim, self.model)
@@ -41,7 +41,6 @@ class LSTMMimick:
             self.mlp_out_bias = self.model.add_parameters(word_embedding_dim)
         else:
             model_members = iter(self.model.load(file))
-            self.c2i = c2i
             self.char_lookup = model_members.next()
             self.char_fwd_lstm = model_members.next()
             self.char_bwd_lstm = model_members.next()
@@ -94,6 +93,7 @@ class LSTMMimick:
         members_to_save.append(self.mlp_out)
         members_to_save.append(self.mlp_out_bias)
         self.model.save(file_name, members_to_save)
+        cPickle.dump(self.c2i, open(file_name[:-4] + '.c2i', 'w'))
 
     @property
     def model(self):
