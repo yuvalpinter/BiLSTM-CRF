@@ -161,7 +161,7 @@ if __name__ == "__main__":
     vocab_words = {}
     with codecs.open(options.vocab, "r", "utf-8") as vocab_file:
         for vw in vocab_file.readlines():
-            vocab_words[vw.strip()] = np.array([0])
+            vocab_words[vw.strip()] = np.array([0.0] * emb_dim)
 
     model = LSTMMimick(c2i, options.num_lstm_layers, options.char_dim, options.hidden_dim, emb_dim)
     trainer = dy.MomentumSGDTrainer(model.model, options.learning_rate, 0.9, 0.1)
@@ -290,6 +290,7 @@ if __name__ == "__main__":
     # write all
     if options.output is not None:
         with codecs.open(options.output, "w", "utf-8") as writer:
+            writer.write("{} {}\n".format(len(vocab_words), emb_dim))
             for vw, emb in vocab_words.iteritems():
                 writer.write(vw + " ")
                 for i in emb:
