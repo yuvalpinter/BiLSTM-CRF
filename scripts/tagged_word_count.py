@@ -1,8 +1,15 @@
+#!/usr/bin/env python
 '''
 finds the rate of words in training corpus tagged with any kind of morphological tag.
 '''
 from __future__ import division
-all_langs = ['ta', 'fa', 'ru', 'sv', 'he', 'bg', 'hi', 'cs', 'es', 'en', 'da', 'it', 'tr', 'lv', 'vi', 'hu']
+from collections import namedtuple
+import cPickle
+
+Instance = namedtuple("Instance", ["sentence", "tags"])
+all_langs = ['ta', 'fa', 'ru', 'sv', 'he', 'bg', 'hi', 'cs', 'es', 'en', 'da', 'it', 'tr', 'lv', 'vi', 'hu',\
+            'kk', 'zh', 'ro', 'id', 'eu', 'el', 'ar']
+
 for l in all_langs:
     if l == 'vi': continue
     total_len = 0
@@ -15,4 +22,4 @@ for l in all_langs:
             for i in xrange(len(ins)):
                  total_len += 1
                  if len([a for a,vs in ins.tags.items() if len(vs) > i and a != 'POS' and vs[i] != l_t2is[a]['<NONE>']]) > 0: tagged_words += 1
-	print l, total_len, tagged_words, tagged_words / total_len
+    print l, total_len, tagged_words, tagged_words / total_len
