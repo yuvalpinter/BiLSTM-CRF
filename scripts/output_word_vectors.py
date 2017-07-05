@@ -19,6 +19,9 @@ def read_text_embs(filename):
                 embs.append(np.array([float(s) for s in split[1:]]))
     return words, embs
 
+def average(embeddings):
+    return np.average(embeddings, 0)
+
 def output_word_vector(word, embed, outfile):
     outfile.write(word + " ")
     for i in embed:
@@ -35,21 +38,27 @@ parser.add_argument("--in-vocab-only", dest="in_vocab_only", action="store_true"
 parser.add_argument("--morpho-only", dest="morpho_only", action="store_true", help="Only use the morpheme embeddings")
 parser.add_argument("--sum-embed", dest="sum_embed", action="store_true", help="Flag to generate embeddings for SumEmbed model")
 parser.add_argument("--polyglot", dest="polyglot", action="store_true", help="Model is Polyglot")
+parser.add_argument("--average-unk", dest="average_unk", action="store_true", help="Use average embeddings instead of model-given UNK")
 parser.add_argument("--w2v", dest="w2v", action="store_true", help="Model is W2V")
 options = parser.parse_args()
 
 # Read in the output vocab
 with codecs.open(options.vocab, "r", "utf-8") as f:
     output_words = set([ line.strip() for line in f ])
-    
+
 # Polyglot and W2V are easy
 if options.polyglot or options.w2v:
     if options.polyglot:
         words, embs = cPickle.load(open(options.vectors, "r"))
-        unk_emb = POLYGLOT_UNK
+        unk_sym = POLYGLOT_UNK
     else:
         words, embs = read_text_embs(options.vectors)
-        unk_emb = W2V_UNK
+        unk_sym = W2V_UNK
+    if options.average_unk:
+        unk_emb = average(embs)
+        ### TODO average open-class option ###
+    else:
+        unk_emb = embs[word_to_ix[unk_sym]]
     word_to_ix = {w : i for (i,w) in enumerate(words)}
     with codecs.open(options.output, "w", "utf-8") as outfile:
         in_vocab = 0
@@ -65,7 +74,7 @@ if options.polyglot or options.w2v:
                 in_vocab += 1
             elif options.in_vocab_only: continue
             else:
-                embed = embs[word_to_ix[unk_emb]]
+                embed = unk_emb
                 output_word_vector(orig_word, embed, outfile)
         print "Total Number of output words:", total
         print "Total in Training Vocabulary:", in_vocab
