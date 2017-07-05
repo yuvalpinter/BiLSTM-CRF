@@ -57,7 +57,7 @@ test_instances = []
 # Read in the output vocab
 with codecs.open(options.vocab, "r", "utf-8") as f:
     vocab = set([ line.strip() for line in f ])
-    
+
 # read embeddings file
 if options.w2v_format:
     words, embs = read_text_embs(options.vectors)
@@ -74,6 +74,7 @@ with codecs.open(options.output, "w", "utf-8") as outfile:
         if word in vocab:
             in_vocab += 1
         training_instances.append(Instance(charseq(word, c2i), emb))
+    training_char_count = len(c2i)
     for v in vocab:
         if v not in words:
             test_instances.append(Instance(charseq(v, c2i), np.array([0.0] * dim)))
@@ -81,7 +82,8 @@ with codecs.open(options.output, "w", "utf-8") as outfile:
     print "Total in Training Vocabulary:", in_vocab
     print "Percentage in-vocab:", in_vocab / total
     print "Total in Embeddings vocabulary:", len(words)
-    print "Character count: ", len(c2i)
+    print "Training set character count: ", training_char_count
+    print "Total haracter count: ", len(c2i)
 
 c2i[PADDING_CHAR] = len(c2i)
 
