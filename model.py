@@ -33,12 +33,12 @@ DEFAULT_WORD_EMBEDDING_SIZE = 64
 DEFAULT_CHAR_EMBEDDING_SIZE = 20
 
 class LSTMTagger:
-'''
-Joint POS/morphosyntactic attribute tagger based on LSTM.
-Embeddings are fed into Bi-LSTM layers, then hidden phases are fed into an MLP for each attribute type (including POS tags).
-Class "inspired" by Dynet's BiLSTM tagger tutorial script available at:
-https://github.com/clab/dynet_tutorial_examples/blob/master/tutorial_bilstm_tagger.py
-'''
+    '''
+    Joint POS/morphosyntactic attribute tagger based on LSTM.
+    Embeddings are fed into Bi-LSTM layers, then hidden phases are fed into an MLP for each attribute type (including POS tags).
+    Class "inspired" by Dynet's BiLSTM tagger tutorial script available at:
+    https://github.com/clab/dynet_tutorial_examples/blob/master/tutorial_bilstm_tagger.py
+    '''
 
     def __init__(self, tagset_sizes, num_lstm_layers, hidden_dim, word_embeddings, no_we_update, use_char_rnn, charset_size, char_embedding_dim, att_props=None, vocab_size=None, word_embedding_dim=None):
         '''
@@ -214,7 +214,7 @@ def get_att_prop(instances):
 
 def get_word_chars(sentence, i2w, c2i):
     pad_char = c2i[PADDING_CHAR]
-    return [pad_char] + [c2i[c] for c in i2w[word]] + [pad_char]
+    return [[pad_char] + [c2i[c] for c in i2w[word]] + [pad_char] for word in sentence]
 
 if __name__ == "__main__":
 
@@ -260,12 +260,13 @@ if __name__ == "__main__":
     Pretrained Embeddings: {}
     Num Epochs: {}
     LSTM: {} layers, {} hidden dim
+    Concatenating character LSTM: {}
     Training set size limit: {} sentences or {} tokens
     Initial Learning Rate: {}
     Dropout: {}
     LSTM loss weights proportional to attribute frequency: {}
 
-    """.format(options.dataset, options.word_embeddings, options.num_epochs, options.lstm_layers, options.hidden_dim,
+    """.format(options.dataset, options.word_embeddings, options.num_epochs, options.lstm_layers, options.hidden_dim, options.use_char_rnn, \
                options.training_sentence_size, options.token_size, options.learning_rate, options.dropout, options.loss_prop))
 
     if options.debug:
@@ -510,7 +511,6 @@ if __name__ == "__main__":
                 f1_eval.add_instance(utils.split_tagstring(g, has_pos=True), utils.split_tagstring(o, has_pos=True))
             for att, tags in gold_tags.items():
                 out_tags = out_tags_set[att]
-                correct_sent = True
 
                 oov_strings = []
                 for word, gold, out in zip(instance.sentence, tags, out_tags):
@@ -519,7 +519,6 @@ if __name__ == "__main__":
                     else:
                         # Got the wrong tag
                         total_wrong[att] += 1
-                        correct_sent = False
                         if i2w[word] not in training_vocab:
                             total_wrong_oov[att] += 1
 
