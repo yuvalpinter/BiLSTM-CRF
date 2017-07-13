@@ -49,7 +49,8 @@ def read_pretrained_embeddings(filename, w2i):
 def split_tagstring(s, uni_key=False, has_pos=False):
     '''
     Returns attribute-value mapping from UD-type CONLL field
-    @param uni_key: if toggled, returns attribute-value pairs as joined strings (with the '=')
+    :param uni_key: if toggled, returns attribute-value pairs as joined strings (with the '=')
+    :param has_pos: input line segment includes POS tag label
     '''
     if has_pos:
         s = s.split("\t")[1]
