@@ -1,3 +1,6 @@
+'''
+Main application script for tagging parts-of-speech and morphosyntactic tags. Run with --help for command line arguments.
+'''
 from __future__ import division
 from collections import Counter
 from _collections import defaultdict
@@ -11,11 +14,12 @@ import cPickle
 import logging
 import progressbar
 import os
-import math
 import dynet as dy
 import numpy as np
 
 import utils
+
+__author__ = "Yuval Pinter and Robert Guthrie, 2017"
 
 Instance = collections.namedtuple("Instance", ["sentence", "tags"])
 
@@ -26,15 +30,34 @@ POS_KEY = "POS"
 PADDING_CHAR = "<*>"
 
 DEFAULT_WORD_EMBEDDING_SIZE = 64
+DEFAULT_CHAR_EMBEDDING_SIZE = 20
 
 class LSTMTagger:
+'''
+Joint POS/morphosyntactic attribute tagger based on LSTM.
+Embeddings are fed into Bi-LSTM layers, then hidden phases are fed into an MLP for each attribute type (including POS tags).
+Class "inspired" by Dynet's BiLSTM tagger tutorial script available at:
+https://github.com/clab/dynet_tutorial_examples/blob/master/tutorial_bilstm_tagger.py
+'''
 
-    def __init__(self, tagset_sizes, num_lstm_layers, hidden_dim, word_embeddings, no_we_update, use_char_rnn, charset_size, lowercase_words, att_props=None, vocab_size=None, word_embedding_dim=None):
+    def __init__(self, tagset_sizes, num_lstm_layers, hidden_dim, word_embeddings, no_we_update, use_char_rnn, charset_size, char_embedding_dim, att_props=None, vocab_size=None, word_embedding_dim=None):
+        '''
+        :param tagset_sizes: dictionary of attribute_name:number_of_possible_tags
+        :param num_lstm_layers: number of desired LSTM layers
+        :param hidden_dim: size of hidden dimension (same for all LSTM layers, including character-level)
+        :param word_embeddings: pre-trained list of embeddings, assumes order by word ID (optional)
+        :param no_we_update: if toggled, don't update embeddings
+        :param use_char_rnn: use "char->tag" option, i.e. concatenate character-level LSTM outputs to word representations (and train underlying LSTM). Only 1-layer is supported.
+        :param charset_size: number of characters expected in dataset (needed for character embedding initialization)
+        :param char_embedding_dim: desired character embedding dimension
+        :param att_props: proportion of loss to assign each attribute for back-propagation weighting (optional)
+        :param vocab_size: number of words in model (ignored if pre-trained embeddings are given)
+        :param word_embedding_dim: desired word embedding dimension (ignored if pre-trained embeddings are given)
+        '''
         self.model = dy.Model()
         self.tagset_sizes = tagset_sizes
         self.attributes = tagset_sizes.keys()
         self.we_update = not no_we_update
-        self.lowercase_words = lowercase_words
         if att_props is not None:
             self.att_props = defaultdict(float, {att:(1.0-p) for att,p in att_props.iteritems()})
         else:
@@ -52,8 +75,8 @@ class LSTMTagger:
         # Char LSTM Parameters
         self.use_char_rnn = use_char_rnn
         if use_char_rnn:
-            self.char_lookup = self.model.add_lookup_parameters((charset_size, 20))
-            self.char_bi_lstm = dy.BiRNNBuilder(1, 20, hidden_dim, self.model, dy.LSTMBuilder)
+            self.char_lookup = self.model.add_lookup_parameters((charset_size, char_embedding_dim))
+            self.char_bi_lstm = dy.BiRNNBuilder(1, char_embedding_dim, hidden_dim, self.model, dy.LSTMBuilder)
 
         # Word LSTM parameters
         if use_char_rnn:
@@ -73,35 +96,23 @@ class LSTMTagger:
             self.mlp_out[att] = self.model.add_parameters((set_size, set_size))
             self.mlp_out_bias[att] = self.model.add_parameters(set_size)
 
-
-    def word_rep(self, word):
+    def word_rep(self, word, char_ids):
         '''
         :param word: index of word in lookup table
         '''
-        if self.lowercase_words:
-            lower_word_form = i2w[word].lower()
-            if lower_word_form in w2i:
-                word_in_ds = w2i[lower_word_form]
-            else:
-                word_in_ds = word
-        else:
-            word_in_ds = word
-        wemb = dy.lookup(self.words_lookup, word_in_ds, update=self.we_update)
-        if self.use_char_rnn:
-            pad_char = c2i[PADDING_CHAR]
-            # Note: use original casing ("word") for characters
-            char_ids = [pad_char] + [c2i[c] for c in i2w[word]] + [pad_char]
-            char_embs = [self.char_lookup[cid] for cid in char_ids]
-            char_exprs = self.char_bi_lstm.transduce(char_embs)
-            return dy.concatenate([ wemb, char_exprs[-1] ])
-        else:
+        wemb = dy.lookup(self.words_lookup, word, update=self.we_update)
+        if char_ids is None:
             return wemb
 
+        # add character representation
+        char_embs = [self.char_lookup[cid] for cid in char_ids]
+        char_exprs = self.char_bi_lstm.transduce(char_embs)
+        return dy.concatenate([ wemb, char_exprs[-1] ])
 
-    def build_tagging_graph(self, sentence):
+    def build_tagging_graph(self, sentence, word_chars):
         dy.renew_cg()
 
-        embeddings = [self.word_rep(w) for w in sentence]
+        embeddings = [self.word_rep(w, chars) for w, chars in zip(sentence, word_chars)]
 
         lstm_out = self.word_bi_lstm.transduce(embeddings)
 
@@ -122,9 +133,12 @@ class LSTMTagger:
 
         return scores
 
-
-    def loss(self, sentence, tags_set):
-        observations_set = self.build_tagging_graph(sentence)
+    def loss(self, sentence, word_chars, tags_set):
+        '''
+        For use in training phase.
+        Tag sentence (all attributes) and compute loss based on probability of expected tags.
+        '''
+        observations_set = self.build_tagging_graph(sentence, word_chars)
         errors = {}
         for att, tags in tags_set.iteritems():
             err = []
@@ -138,9 +152,12 @@ class LSTMTagger:
                 err = dy.cmult(err, prop_vec)
         return errors
 
-
-    def tag_sentence(self, sentence):
-        observations_set = self.build_tagging_graph(sentence)
+    def tag_sentence(self, sentence, word_chars):
+        '''
+        For use in testing phase.
+        Tag sentence and return tags for each attribute, without caluclating loss.
+        '''
+        observations_set = self.build_tagging_graph(sentence, word_chars)
         tag_seqs = {}
         for att, observations in observations_set.iteritems():
             observations = [ dy.softmax(obs) for obs in observations ]
@@ -152,15 +169,17 @@ class LSTMTagger:
             tag_seqs[att] = tag_seq
         return tag_seqs
 
-
     def set_dropout(self, p):
         self.word_bi_lstm.set_dropout(p)
-
 
     def disable_dropout(self):
         self.word_bi_lstm.disable_dropout()
 
     def save(self, file_name):
+        '''
+        Serialize model parameters for future loading and use.
+        Currently loaded using initializer in scripts/test_model.py
+        '''
         members_to_save = []
         members_to_save.append(self.words_lookup)
         if (self.use_char_rnn):
@@ -180,6 +199,8 @@ class LSTMTagger:
     def model(self):
         return self.model
 
+### END OF CLASSES ###
+
 def get_att_prop(instances):
     logging.info("Calculating attribute proportions for proportional loss margin or proportional loss magnitude")
     total_tokens = 0
@@ -190,6 +211,10 @@ def get_att_prop(instances):
             t2i = t2is[att]
             att_counts[att] += len([t for t in tags if t != t2i.get(NONE_TAG, -1)])
     return {att:(1.0 - (att_counts[att] / total_tokens)) for att in att_counts}
+
+def get_word_chars(sentence, i2w, c2i):
+    pad_char = c2i[PADDING_CHAR]
+    return [pad_char] + [c2i[c] for c in i2w[word]] + [pad_char]
 
 if __name__ == "__main__":
 
@@ -209,7 +234,6 @@ if __name__ == "__main__":
     parser.add_argument("--no-we-update", dest="no_we_update", action="store_true", help="Word Embeddings aren't updated")
     parser.add_argument("--loss-prop", dest="loss_prop", action="store_true", help="Proportional loss magnitudes")
     parser.add_argument("--use-char-rnn", dest="use_char_rnn", action="store_true", help="Use character RNN (default - off)")
-    parser.add_argument("--lowercase-words", dest="lowercase_words", action="store_true", help="Words are all in lowercased form (characters stay the same)")
     parser.add_argument("--log-dir", default="log", dest="log_dir", help="Directory where to write logs / serialized models")
     parser.add_argument("--no-model", dest="no_model", action="store_true", help="Don't serialize models")
     parser.add_argument("--dynet-mem", help="Ignore this external argument")
@@ -240,10 +264,9 @@ if __name__ == "__main__":
     Initial Learning Rate: {}
     Dropout: {}
     LSTM loss weights proportional to attribute frequency: {}
-    Lowercasing words: {}
 
     """.format(options.dataset, options.word_embeddings, options.num_epochs, options.lstm_layers, options.hidden_dim,
-               options.training_sentence_size, options.token_size, options.learning_rate, options.dropout, options.loss_prop, options.lowercase_words))
+               options.training_sentence_size, options.token_size, options.learning_rate, options.dropout, options.loss_prop))
 
     if options.debug:
         print "DEBUG MODE"
@@ -305,9 +328,9 @@ if __name__ == "__main__":
                        no_we_update = options.no_we_update,
                        use_char_rnn=options.use_char_rnn,
                        charset_size=len(c2i),
-                       lowercase_words=options.lowercase_words,
-                       vocab_size=len(w2i),
+                       char_embedding_dim=DEFAULT_CHAR_EMBEDDING_SIZE,
                        att_props=att_props,
+                       vocab_size=len(w2i),
                        word_embedding_dim=DEFAULT_WORD_EMBEDDING_SIZE)
 
     trainer = dy.MomentumSGDTrainer(model.model, options.learning_rate, 0.9, 0.1)
@@ -338,12 +361,13 @@ if __name__ == "__main__":
             for att in model.attributes:
                 if att not in instance.tags:
                     gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-            loss_exprs = model.loss(instance.sentence, gold_tags)
+            word_chars = None if not options.use_char_rnn else get_word_chars(instance.sentence, i2w, c2i)
+            loss_exprs = model.loss(instance.sentence, word_chars, gold_tags)
             loss_expr = dy.esum(loss_exprs.values())
             loss = loss_expr.scalar_value()
 
             # Bail if loss is NaN
-            if math.isnan(loss):
+            if np.isnan(loss):
                 assert False, "NaN occured"
 
             train_loss += (loss / len(instance.sentence))
@@ -377,12 +401,13 @@ if __name__ == "__main__":
             for instance in bar(d_instances):
                 if len(instance.sentence) == 0: continue
                 gold_tags = instance.tags
+                word_chars = None if not options.use_char_rnn else get_word_chars(instance.sentence, i2w, c2i)
                 for att in model.attributes:
                     if att not in instance.tags:
                         gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-                losses = model.loss(instance.sentence, gold_tags)
+                losses = model.loss(instance.sentence, word_chars, gold_tags)
                 total_loss = sum([l.scalar_value() for l in losses.values()])
-                out_tags_set = model.tag_sentence(instance.sentence)
+                out_tags_set = model.tag_sentence(instance.sentence, word_chars)
 
                 gold_strings = utils.morphotag_strings(i2ts, gold_tags)
                 obs_strings = utils.morphotag_strings(i2ts, out_tags_set)
@@ -476,7 +501,8 @@ if __name__ == "__main__":
             for att in model.attributes:
                 if att not in instance.tags:
                     gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-            out_tags_set = model.tag_sentence(instance.sentence)
+            word_chars = word_chars = None if not options.use_char_rnn else get_word_chars(instance.sentence, i2w, c2i)
+            out_tags_set = model.tag_sentence(instance.sentence, word_chars)
 
             gold_strings = utils.morphotag_strings(i2ts, gold_tags)
             obs_strings = utils.morphotag_strings(i2ts, out_tags_set)

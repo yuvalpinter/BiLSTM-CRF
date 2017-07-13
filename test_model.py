@@ -24,178 +24,12 @@ END_TAG = "<STOP>"
 POS_KEY = "POS"
 PADDING_CHAR = "<*>"
 
-
 def get_next_att_batch(attributes, att_tuple):
     ret = {}
     for att in attributes:
         ret[att] = att_tuple.next()
     return ret
 
-class BiLSTM_CRF:
-
-    def __init__(self, rnn_model, use_char_rnn, tagset_sizes, train_vocab_ctr):
-        self.tagset_sizes = tagset_sizes
-        self.train_vocab_ctr = train_vocab_ctr
-        self.use_char_rnn = use_char_rnn
-
-        self.model = dy.Model()
-        att_tuple = iter(self.model.load(rnn_model))
-        self.attributes = open(rnn_model + "-atts", "r").read().split("\t") # can also be extracted then sorted from tagset_sizes
-        att_ct = len(self.attributes)
-        self.words_lookup = att_tuple.next()
-        if (self.use_char_rnn):
-            self.char_lookup = att_tuple.next()
-            self.char_bi_lstm = att_tuple.next()
-        self.bi_lstm = att_tuple.next()
-        self.lstm_to_tags_params = get_next_att_batch(self.attributes, att_tuple)
-        self.lstm_to_tags_bias = get_next_att_batch(self.attributes, att_tuple)
-        self.mlp_out = get_next_att_batch(self.attributes, att_tuple)
-        self.mlp_out_bias = get_next_att_batch(self.attributes, att_tuple)
-        self.transitions = get_next_att_batch(self.attributes, att_tuple)
-
-        # TODO Morpheme embedding parameters
-        self.morpheme_lookup = None
-
-
-    def set_dropout(self, p):
-        self.bi_lstm.set_dropout(p)
-
-
-    def disable_dropout(self):
-        self.bi_lstm.disable_dropout()
-
-
-    def word_rep(self, word):
-        """
-        For rare words in the training data, we will use their morphemes
-        to make their representation
-        """
-        if self.train_vocab_ctr[word] > 5 or self.morpheme_lookup is None:
-            wemb = self.words_lookup[word]
-        else:
-            # Use morpheme embeddings
-            morpheme_decomp = self.morpheme_decomps[word]
-            wemb = self.morpheme_lookup[morpheme_decomp[0]]
-            for m in morpheme_decomp[1:]:
-                wemb += self.morpheme_lookup[m]
-            if self.morpheme_projection is not None:
-                wemb = self.morpheme_projection * wemb
-            if np.linalg.norm(wemb.npvalue()) >= 50.0:
-                # This is meant to handle things like URLs and weird tokens like !!!!!!!!!!!!!!!!!!!!!
-                # that are splitting into a lot of morphemes, and their large representations are cause NaNs
-                # TODO handle this in a better way.  Looks like all such inputs are either URLs, email addresses, or
-                # long strings of a punctuation token when the decomposition is > 10
-                wemb = self.words_lookup[w2i["<UNK>"]]
-
-        if self.use_char_rnn:
-            pad_char = c2i[PADDING_CHAR]
-            char_ids = [pad_char] + [c2i[c] for c in i2w[word]] + [pad_char] # TODO optimize
-            char_embs = [self.char_lookup[cid] for cid in char_ids]
-            char_exprs = self.char_bi_lstm.transduce(char_embs)
-            return dy.concatenate([ wemb, char_exprs[-1] ])
-        else:
-            return wemb
-
-
-    def build_tagging_graph(self, sentence):
-        dy.renew_cg()
-
-        embeddings = [self.word_rep(w) for w in sentence]
-
-        lstm_out = self.bi_lstm.transduce(embeddings)
-
-        scores = {}
-        H = {}
-        Hb = {}
-        O = {}
-        Ob = {}
-        for att in self.attributes:
-            H[att] = dy.parameter(self.lstm_to_tags_params[att])
-            Hb[att] = dy.parameter(self.lstm_to_tags_bias[att])
-            O[att] = dy.parameter(self.mlp_out[att])
-            Ob[att] = dy.parameter(self.mlp_out_bias[att])
-            scores[att] = []
-            for rep in lstm_out:
-                score_t = O[att] * dy.tanh(H[att] * rep + Hb[att]) + Ob[att]
-                scores[att].append(score_t)
-
-        return scores
-
-
-    def score_sentence(self, observations, tags, att):
-        t2i = t2is[att]
-        if len(tags) == 0:
-            tags = [t2i[NONE_TAG]] * len(observations)
-        assert len(observations) == len(tags)
-        trans = self.transitions[att]
-        score_seq = [0]
-        score = dy.scalarInput(0)
-        tags = [t2i[START_TAG]] + tags
-        for i, obs in enumerate(observations):
-            score = score + dy.pick(trans[tags[i+1]], tags[i]) + dy.pick(obs, tags[i+1])
-            score_seq.append(score.value())
-        score = score + dy.pick(trans[t2i[END_TAG]], tags[-1])
-        return score
-
-
-    def viterbi_loss(self, sentence, tags_set):
-        observations_set = self.build_tagging_graph(sentence)
-        losses = {}
-        ret_tags = {}
-        for att, observations in observations_set.items():
-            tags = tags_set[att]
-            viterbi_tags, viterbi_score = self.viterbi_decoding(observations, tags, att)
-            if viterbi_tags != tags:
-                gold_score = self.score_sentence(observations, tags, att)
-                losses[att] = viterbi_score - gold_score
-                ret_tags[att] = viterbi_tags
-            else:
-                losses[att] = dy.scalarInput(0)
-                ret_tags[att] = viterbi_tags
-        return losses, ret_tags
-
-
-    def viterbi_decoding(self, observations, gold_tags, att):
-        t2i = t2is[att]
-        tagset_size = self.tagset_sizes[att]
-        backpointers = []
-        init_vvars   = [-1e10] * tagset_size
-        init_vvars[t2i[START_TAG]] = 0 # <Start> has all the probability
-        for_expr     = dy.inputVector(init_vvars)
-        trans_exprs  = [self.transitions[att][idx] for idx in range(tagset_size)]
-        for gold, obs in zip(gold_tags, observations):
-            bptrs_t = []
-            vvars_t = []
-            for next_tag in range(tagset_size):
-                next_tag_expr = for_expr + trans_exprs[next_tag]
-                next_tag_arr = next_tag_expr.npvalue()
-                best_tag_id  = np.argmax(next_tag_arr)
-                bptrs_t.append(best_tag_id)
-                vvars_t.append(dy.pick(next_tag_expr, best_tag_id))
-            for_expr = dy.concatenate(vvars_t) + obs
-            # No margins! Testing only.
-            backpointers.append(bptrs_t)
-        # Perform final transition to terminal
-        terminal_expr = for_expr + trans_exprs[t2i[END_TAG]]
-        terminal_arr  = terminal_expr.npvalue()
-        best_tag_id   = np.argmax(terminal_arr)
-        path_score    = dy.pick(terminal_expr, best_tag_id)
-        # Reverse over the backpointers to get the best path
-        best_path = [best_tag_id] # Start with the tag that was best for terminal
-        for bptrs_t in reversed(backpointers):
-            best_tag_id = bptrs_t[best_tag_id]
-            best_path.append(best_tag_id)
-        start = best_path.pop() # Remove the start symbol
-        best_path.reverse()
-        assert start == t2i[START_TAG]
-        # Return best path and best path's score
-        return best_path, path_score
-
-    @property
-    def model(self):
-        return self.model
-
-# LOADING NOT YET IMPLEMENTED
 class LSTMTagger:
 
     def __init__(self, rnn_model, use_char_rnn):
@@ -306,9 +140,6 @@ parser.add_argument("--dataset", required=True, dest="dataset", help=".pkl file 
 parser.add_argument("--model", required=True, dest="model_file", help="Model file to use (.bin)")
 parser.add_argument("--use-char-rnn", dest="use_char_rnn", action="store_true", help="Model being read has char RNN trained")
 parser.add_argument("--use-dev", dest="use_dev", action="store_true", help="Report on dev set instead of test")
-parser.add_argument("--morpheme-projection", dest="morpheme_projection", help="Pickle file containing projection matrix if applicable")
-parser.add_argument("--viterbi", dest="viterbi", action="store_true", help="Use viterbi training instead of CRF")
-parser.add_argument("--no-sequence-model", dest="no_sequence_model", action="store_true", help="Use regular LSTM tagger with no viterbi")
 parser.add_argument("--out-dir", default="out", dest="out_dir", help="Directory where to write output")
 parser.add_argument("--pos-separate-col", default=True, dest="pos_separate_col", help="Output examples have POS in separate column")
 parser.add_argument("--debug", dest="debug", action="store_true", help="Debug mode")
@@ -326,24 +157,16 @@ if not os.path.exists(options.out_dir):
     os.mkdir(options.out_dir)
 logging.basicConfig(filename=options.out_dir + "/out-{}.txt".format(devortest), filemode="w", format="%(message)s", level=logging.INFO)
 
-
 # ===-----------------------------------------------------------------------===
 # Log some stuff about this run
 # ===-----------------------------------------------------------------------===
-if options.viterbi:
-    objective = "Viterbi"
-elif options.no_sequence_model:
-    objective = "No Sequence Model"
-else:
-    objective = "CRF"
 logging.info(
 """
 Dataset: {}
 Using Dev instead of Test: {}
 Model input: {}
-Objective: {}
 
-""".format(options.dataset, options.use_dev, options.model_file, objective))
+""".format(options.dataset, options.use_dev, options.model_file))
 
 if options.debug:
     print "DEBUG MODE"
@@ -355,8 +178,6 @@ dataset = cPickle.load(open(options.dataset, "r"))
 w2i = dataset["w2i"]
 t2is = dataset["t2is"]
 c2i = dataset["c2i"]
-#m2i = dataset["m2i"]
-m2i = None
 i2w = { i: w for w, i in w2i.items() } # Inverse mapping
 i2ts = { att: {i: t for t, i in t2i.items()} for att, t2i in t2is.items() }
 i2c = { i: c for c, i in c2i.items() }
@@ -368,28 +189,13 @@ if options.use_dev:
 else:
     test_instances = dataset["test_instances"]
 
-
 # ===-----------------------------------------------------------------------===
 # Load model
 # ===-----------------------------------------------------------------------===
 
 tag_set_sizes = { att: len(t2i) for att, t2i in t2is.items() }
-if options.no_sequence_model:
-    model = LSTMTagger(options.model_file, options.use_char_rnn)
 
-else:
-    #morpheme_embeddings = utils.read_pretrained_embeddings(options.morpheme_embeddings, m2i)
-    # if options.morpheme_projection is not None:
-    #     assert word_embeddings.shape[1] != morpheme_embeddings.shape[1]
-    #     morpheme_projection = cPickle.load(open(options.morpheme_projection, "r"))
-    # else:
-    #     morpheme_projection = None
-
-    morpheme_embeddings = None
-    morpheme_projection = None
-    morpheme_decomps = None
-    #morpheme_decomps = dataset["morpheme_segmentations"]
-    model = BiLSTM_CRF(options.model_file, options.use_char_rnn, tag_set_sizes, training_vocab)
+model = LSTMTagger(options.model_file, options.use_char_rnn)
 
 logging.info("Number {} instances: {}".format(devortest, len(test_instances)))
 
@@ -451,7 +257,6 @@ with open("{}/{}out.txt".format(options.out_dir, devortest), 'w') as test_writer
                          + "\n".join(["\t".join(z) for z in zip([i2w[w] for w in instance.sentence],
                                                                      gold_strings, obs_strings, oov_strings)])
                          + "\n").encode('utf8'))
-
 
 if options.use_dev:
     logging.info("POS Dev Accuracy: {}".format(test_correct[POS_KEY] / test_total[POS_KEY]))
