@@ -5,7 +5,7 @@ import collections
 
 Instance = collections.namedtuple("Instance", ["sentence", "tags"])
 
-langs = "en it da lv tr vi hu ta fa ru sv he bg hi cs es".split()
+langs = "en it da lv tr vi hu ta fa ru sv he bg hi cs es ar zh id eu kk el ro".split()
 
 for lg in langs:
     # get polyglot vocab
