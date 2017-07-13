@@ -1,3 +1,7 @@
+'''
+Run a saved model on a dev or test file.
+This file is less refined, documented, and refactored than model.py, but the results are the same. Refer there for documentation.
+'''
 from __future__ import division
 from collections import Counter
 from evaluate_morphotags import Evaluator
@@ -36,26 +40,17 @@ class LSTMTagger:
         self.use_char_rnn = use_char_rnn
 
         self.model = dy.Model()
-        att_tuple = self.model.load(rnn_model)
+        att_tuple = iter(self.model.load(rnn_model))
         self.attributes = open(rnn_model + "-atts", "r").read().split("\t")
-        att_ct = len(self.attributes)
-        idx = 0
-        self.words_lookup = att_tuple[idx]
-        idx += 1
+        self.words_lookup = att_tuple.next()
         if (self.use_char_rnn):
-            self.char_lookup = att_tuple[idx]
-            idx += 1
-            self.char_bi_lstm = att_tuple[idx]
-            idx += 1
-        self.word_bi_lstm = att_tuple[idx]
-        idx += 1
-        self.lstm_to_tags_params = get_next_att_batch(self.attributes, att_tuple, idx)
-        idx += att_ct
-        self.lstm_to_tags_bias = get_next_att_batch(self.attributes, att_tuple, idx)
-        idx += att_ct
-        self.mlp_out = get_next_att_batch(self.attributes, att_tuple, idx)
-        idx += att_ct
-        self.mlp_out_bias = get_next_att_batch(self.attributes, att_tuple, idx)
+            self.char_lookup = att_tuple.next()
+            self.char_bi_lstm = att_tuple.next()
+        self.word_bi_lstm = att_tuple.next()
+        self.lstm_to_tags_params = get_next_att_batch(self.attributes, att_tuple)
+        self.lstm_to_tags_bias = get_next_att_batch(self.attributes, att_tuple)
+        self.mlp_out = get_next_att_batch(self.attributes, att_tuple)
+        self.mlp_out_bias = get_next_att_batch(self.attributes, att_tuple)
 
 
     def word_rep(self, w):
@@ -141,8 +136,9 @@ parser.add_argument("--model", required=True, dest="model_file", help="Model fil
 parser.add_argument("--use-char-rnn", dest="use_char_rnn", action="store_true", help="Model being read has char RNN trained")
 parser.add_argument("--use-dev", dest="use_dev", action="store_true", help="Report on dev set instead of test")
 parser.add_argument("--out-dir", default="out", dest="out_dir", help="Directory where to write output")
-parser.add_argument("--pos-separate-col", default=True, dest="pos_separate_col", help="Output examples have POS in separate column")
+parser.add_argument("--all-same-col", dest="all_same_col", action="store_true", help="Output examples have POS in same column as tags")
 parser.add_argument("--debug", dest="debug", action="store_true", help="Debug mode")
+parser.add_argument("--dynet-seed", dest="dynet_seed", help="Ignore this Dynet param")
 options = parser.parse_args()
 
 if options.use_dev:
@@ -215,26 +211,18 @@ else:
 with open("{}/{}out.txt".format(options.out_dir, devortest), 'w') as test_writer:
     for instance in bar(t_instances):
         if len(instance.sentence) == 0: continue
-        if options.no_sequence_model:
-            gold_tags = instance.tags
-            for att in model.attributes:
-                if att not in instance.tags:
-                    gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-            out_tags_set = model.tag_sentence(instance.sentence)
-        else:
-            gold_tags = instance.tags
-            for att in model.attributes:
-                if att not in instance.tags:
-                    gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-            _, out_tags_set = model.viterbi_loss(instance.sentence, gold_tags)
+        gold_tags = instance.tags
+        for att in model.attributes:
+            if att not in instance.tags:
+                gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
+        out_tags_set = model.tag_sentence(instance.sentence)
 
-        gold_strings = utils.morphotag_strings(i2ts, gold_tags, options.pos_separate_col)
-        obs_strings = utils.morphotag_strings(i2ts, out_tags_set, options.pos_separate_col)
+        gold_strings = utils.morphotag_strings(i2ts, gold_tags, not options.all_same_col)
+        obs_strings = utils.morphotag_strings(i2ts, out_tags_set, not options.all_same_col)
         for g, o in zip(gold_strings, obs_strings):
-            f1_eval.add_instance(utils.split_tagstring(g), utils.split_tagstring(o))
+            f1_eval.add_instance(utils.split_tagstring(g, has_pos=True), utils.split_tagstring(o, has_pos=True))
         for att, tags in gold_tags.items():
             out_tags = out_tags_set[att]
-            correct_sent = True
 
             oov_strings = []
             for word, gold, out in zip(instance.sentence, tags, out_tags):
@@ -243,7 +231,6 @@ with open("{}/{}out.txt".format(options.out_dir, devortest), 'w') as test_writer
                 else:
                     # Got the wrong tag
                     total_wrong[att] += 1
-                    correct_sent = False
                     if i2w[word] not in training_vocab:
                         total_wrong_oov[att] += 1
 
@@ -252,6 +239,7 @@ with open("{}/{}out.txt".format(options.out_dir, devortest), 'w') as test_writer
                     oov_strings.append("OOV")
                 else:
                     oov_strings.append("")
+
             test_total[att] += len(tags)
         test_writer.write(("\n"
                          + "\n".join(["\t".join(z) for z in zip([i2w[w] for w in instance.sentence],
@@ -268,5 +256,5 @@ if total_wrong[POS_KEY] > 0:
 for attr in t2is.keys():
     if attr != POS_KEY:
         logging.info("{} F1: {}".format(attr, f1_eval.mic_f1(att = attr)))
-logging.info("Total attribute F1s: {} micro, {} macro, POS included = {}".format(f1_eval.mic_f1(), f1_eval.mac_f1(), not options.pos_separate_col))
+logging.info("Total attribute F1s: {} micro, {} macro, POS included = {}".format(f1_eval.mic_f1(), f1_eval.mac_f1(), options.all_same_col))
 logging.info("Total tokens: {}, Total OOV: {}, % OOV: {}".format(test_total[POS_KEY], test_oov_total[POS_KEY], test_oov_total[POS_KEY] / test_total[POS_KEY]))
