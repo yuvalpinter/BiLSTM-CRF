@@ -19,6 +19,7 @@ import numpy as np
 
 import utils
 
+__author__ = "Yuval Pinter, 2017"
 
 Instance = collections.namedtuple("Instance", ["sentence", "tags"])
 

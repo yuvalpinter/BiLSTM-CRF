@@ -8,7 +8,7 @@ import argparse
 import codecs
 import numpy as np
 
-__author__ = "Robert Guthrie and Yuval Pinter, 2016-17"
+__author__ = "Yuval Pinter and Robert Guthrie, 2017"
 
 POLYGLOT_UNK = unicode("<UNK>")
 W2V_UNK = unicode("UNK")
