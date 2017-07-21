@@ -1,12 +1,11 @@
 '''
-Created on Nov 30, 2016
 Follows <gold,observed> pairs, each <attribute, value> and produces macro or micro f1 scores,
 either by attribute alone (pooled over values) or by attribute-value combination.
-
-@author: Yuval Pinter
 '''
 from __future__ import division
 from numpy import average
+
+__author__ = "Yuval Pinter, November 2016"
 
 def f1(corr, gold, obs):
     if gold <= 0 or obs <= 0 or corr <= 0:
@@ -17,16 +16,13 @@ def f1(corr, gold, obs):
 
 class Evaluator(object):
     '''
-    classdocs
+    Aggregates and evaluates attribute scores in several available modes:
+    att - pool scores by attribute over values
+    att_val - separate scores for each <attribute, value> pair
+    exact - only compute accuracy for full tag (all attributes in instance)
     '''
 
     def __init__(self, m='att'):
-        '''
-        values for m (mode):
-        att - pool scores by attribute over values
-        att_val - separate scores for each <attribute, value> pair
-        exact - only compute accuracy for full tag (all attributes in instance)
-        '''
         self.instance_count = 0
         self.exact_match = 0
         self.correct = {}
@@ -36,8 +32,8 @@ class Evaluator(object):
 
     def add_instance(self, g, o):
         '''
-        g - gold annotation for instance
-        o - observed (inferred) annotation for instance
+        :param g: - gold annotation for instance
+        :param o: - observed (inferred) annotation for instance
         '''
         self.instance_count = self.instance_count + 1
         if self.mode == 'exact':
@@ -64,7 +60,7 @@ class Evaluator(object):
     def mic_f1(self, att = None):
         '''
         Micro F1
-        @param att get f1 for specific attribute (exact match)
+        :param att: get f1 for specific attribute (exact match)
         '''
         if att != None:
             return f1(self.correct.get(att, 0), self.gold.get(att, 0), self.observed.get(att, 0))
@@ -73,7 +69,7 @@ class Evaluator(object):
     def mac_f1(self, att = None):
         '''
         Macro F1
-        @param att only relevant in att_val mode, otherwise fails (use mic_f1)
+        :param att: only relevant in att_val mode, otherwise fails (use mic_f1)
         '''
         all_keys = set().union(self.gold.keys(), self.observed.keys())
         if att == None:
