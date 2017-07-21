@@ -1,7 +1,5 @@
 '''
-Created on Nov 30, 2016
-
-@author: Yuval Pinter
+Small test to ensure proper behaviour of evaluate_morphotags.Evaluator
 '''
 from __future__ import division
 import unittest
@@ -10,6 +8,8 @@ from utils import split_tagstring
 from numpy import nan
 from numpy.testing.utils import assert_almost_equal
 from numpy.testing.utils import assert_equal
+
+__author__ = "Yuval Pinter, 2016"
 
 class Test(unittest.TestCase):
 
