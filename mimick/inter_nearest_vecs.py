@@ -12,6 +12,8 @@ Instance = collections.namedtuple("Instance", ["chars", "word_emb"])
 def dist(v1, v2):
     return 1.0 - (v1.dot(v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
 
+### TODO reconciliate pkl format with gensim and use its built-in KeyedVectors.similar_by_vector() ###
+
 if __name__ == "__main__":
     # parse command line arguments
     parser = argparse.ArgumentParser()

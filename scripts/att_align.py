@@ -1,3 +1,6 @@
+'''
+Script analyzing the relations between POS tags and morphosyntactic attributes
+'''
 from __future__ import division
 from collections import Counter, defaultdict
 from codecs import open
@@ -11,6 +14,8 @@ import cPickle
 import os
 import math
 import numpy as np
+
+__author__ = "Yuval Pinter, 2017"
 
 Instance = collections.namedtuple("Instance", ["sentence", "tags"])
 

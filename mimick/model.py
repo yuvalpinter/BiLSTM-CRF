@@ -70,7 +70,6 @@ class LSTMMimick:
         rep = dy.concatenate([bi_fwd_out[-1], bi_bwd_out[-1]])
 
         return O * dy.tanh(H * rep + Hb) + Ob
-        #return O * dy.rectify(H * rep + Hb) + Ob # ReLU gives less good neighbors
 
     def loss(self, observation, target_rep):
         return dy.squared_distance(observation, dy.inputVector(target_rep))
