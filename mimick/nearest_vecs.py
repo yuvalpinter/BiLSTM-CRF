@@ -1,3 +1,6 @@
+'''
+Batch script for obtaining nearest vectors for list of OOV words.
+'''
 from __future__ import division
 from collections import Counter
 
@@ -8,6 +11,8 @@ import cPickle
 import math
 import codecs
 import numpy as np
+
+__author__ = "Yuval Pinter, 2017"
 
 POLYGLOT_UNK = unicode("<UNK>")
 PADDING_CHAR = "<*>"
