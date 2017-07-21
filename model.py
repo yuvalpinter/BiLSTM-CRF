@@ -279,7 +279,6 @@ if __name__ == "__main__":
     w2i = dataset["w2i"]
     t2is = dataset["t2is"]
     c2i = dataset["c2i"]
-    m2i = None
     i2w = { i: w for w, i in w2i.items() } # Inverse mapping
     i2ts = { att: {i: t for t, i in t2i.items()} for att, t2i in t2is.items() }
     i2c = { i: c for c, i in c2i.items() }
@@ -342,41 +341,49 @@ if __name__ == "__main__":
 
     for epoch in xrange(int(options.num_epochs)):
         bar = progressbar.ProgressBar()
+
+        # set up epoch
         random.shuffle(training_instances)
         train_loss = 0.0
-        train_correct = Counter()
-        train_total = Counter()
 
         if options.dropout > 0:
             model.set_dropout(options.dropout)
 
+        # debug samples small set for faster full loop
         if options.debug:
             train_instances = training_instances[0:int(len(training_instances)/20)]
         else:
             train_instances = training_instances
 
+        # main training loop
         for idx,instance in enumerate(bar(train_instances)):
             if len(instance.sentence) == 0: continue
 
             gold_tags = instance.tags
             for att in model.attributes:
                 if att not in instance.tags:
+                    # 'pad' entire sentence with none tags
                     gold_tags[att] = [t2is[att][NONE_TAG]] * len(instance.sentence)
-            word_chars = None if not options.use_char_rnn else get_word_chars(instance.sentence, i2w, c2i)
+
+            word_chars = None if not options.use_char_rnn\
+                                else get_word_chars(instance.sentence, i2w, c2i)
+
+            # calculate all losses for sentence
             loss_exprs = model.loss(instance.sentence, word_chars, gold_tags)
             loss_expr = dy.esum(loss_exprs.values())
             loss = loss_expr.scalar_value()
 
-            # Bail if loss is NaN
+            # bail if loss is NaN
             if np.isnan(loss):
                 assert False, "NaN occured"
 
             train_loss += (loss / len(instance.sentence))
 
-            # Do backward pass and update parameters
+            # backward pass and parameter update
             loss_expr.backward()
             trainer.update()
 
+        # log epoch's train phase
         logging.info("\n")
         logging.info("Epoch {} complete".format(epoch + 1))
         trainer.update_epoch(1)
@@ -384,7 +391,7 @@ if __name__ == "__main__":
 
         train_loss = train_loss / len(train_instances)
 
-        # Evaluate dev data
+        # evaluate dev data
         model.disable_dropout()
         dev_loss = 0.0
         dev_correct = Counter()
@@ -447,7 +454,7 @@ if __name__ == "__main__":
 
         dev_loss = dev_loss / len(d_instances)
 
-        # logging this epoch
+        # log epoch results
         logging.info("POS Dev Accuracy: {}".format(dev_correct[POS_KEY] / dev_total[POS_KEY]))
         logging.info("POS % OOV accuracy: {}".format((dev_oov_total[POS_KEY] - total_wrong_oov[POS_KEY]) / dev_oov_total[POS_KEY]))
         if total_wrong[POS_KEY] > 0:
@@ -467,7 +474,7 @@ if __name__ == "__main__":
             old_devout_file_name = "{}/devout_epoch-{:02d}.txt".format(options.log_dir, epoch)
             os.remove(old_devout_file_name)
 
-        # Serialize model
+        # serialize model
         if not options.no_model:
             new_model_file_name = "{}/model_epoch-{:02d}.bin".format(options.log_dir, epoch + 1)
             logging.info("Saving model to {}".format(new_model_file_name))
@@ -480,7 +487,9 @@ if __name__ == "__main__":
                 os.remove(old_model_file_name + ".pyk")
                 os.remove(old_model_file_name + "-atts")
 
-    # Evaluate test data (once)
+        # epoch loop ends
+
+    # evaluate test data (once)
     logging.info("\n")
     logging.info("Number test instances: {}".format(len(test_instances)))
     model.disable_dropout()
@@ -535,6 +544,7 @@ if __name__ == "__main__":
                              + "\n").encode('utf8'))
 
 
+    # log test results
     logging.info("POS Test Accuracy: {}".format(test_correct[POS_KEY] / test_total[POS_KEY]))
     logging.info("POS % Test OOV accuracy: {}".format((test_oov_total[POS_KEY] - total_wrong_oov[POS_KEY]) / test_oov_total[POS_KEY]))
     if total_wrong[POS_KEY] > 0:
