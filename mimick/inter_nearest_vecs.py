@@ -1,10 +1,15 @@
 #!/usr/bin/env python
+'''
+An interactive tool for querying a Mimick model for nearest vectors of OOV words.
+'''
 import sys
 import cPickle as pickle
 import numpy as np
 import collections
 import argparse
 from model import LSTMMimick
+
+__author__ = "Yuval Pinter, 2017"
 
 QUITTING_WORDS = ['q', 'Q', 'quit', 'exit']
 Instance = collections.namedtuple("Instance", ["chars", "word_emb"])
